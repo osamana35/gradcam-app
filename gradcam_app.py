@@ -1,3 +1,4 @@
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -63,8 +64,8 @@ st.subheader("Predicted Class")
 st.markdown(f"**Predicted Class Index:** {int(class_idx)}", unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
-col1.image(img_rgb, caption="Original X-Ray", use_column_width=True)
-col2.image(superimposed_img, caption="Grad-CAM Overlay", use_column_width=True)
+col1.image(img_rgb, caption="Original X-Ray")
+col2.image(superimposed_img, caption="Grad-CAM Overlay")
 
 # توضيح معاني الألوان
 st.markdown("""
@@ -79,5 +80,4 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.success("✅ Visualization Complete")
-
 
