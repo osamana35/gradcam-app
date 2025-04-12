@@ -96,8 +96,8 @@ st.markdown("""
 """)
 
 col1, col2 = st.columns(2)
-col1.image(img_rgb, caption="🩻 Original X-Ray", use_column_width=True)
-col2.image(superimposed_img, caption="🔥 Grad-CAM Overlay", use_column_width=True)
+col1.image(img_rgb, caption="🩻 Original X-Ray", use_container_width=True)
+col2.image(superimposed_img, caption="🔥 Grad-CAM Overlay", use_container_width=True)
 
 # توضيح معاني الألوان
 st.markdown("""
