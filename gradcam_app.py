@@ -25,7 +25,7 @@ st.set_page_config(layout="centered")
 st.title("📸 Grad-CAM Visualization for Chest X-Ray")
 
 # تحميل النموذج
-model_path = "/content/drive/MyDrive/Merged_Mendeley_ViralCovid/mobilenet_model_clahe_aug.h5"
+model_path = "mobilenet_model_clahe_aug.h5"
 model = load_model(model_path)
 model.compile(optimizer='adam', loss='categorical_crossentropy')  # مهم جدًا
 last_conv_layer_name = 'Conv_1'
