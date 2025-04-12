@@ -1,5 +1,3 @@
-
-
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,8 +17,12 @@ st.title("Grad-CAM Visualization for Chest X-Ray")
 
 # تحميل النموذج
 model_path = "mobilenet_model_clahe_aug.h5"
+if not os.path.exists(model_path):
+    st.error(f"Model file not found: {model_path}")
+    st.stop()
+
 model = load_model(model_path)
-model.compile(optimizer='adam', loss='categorical_crossentropy')  # مهم جدًا
+model.compile(optimizer='adam', loss='categorical_crossentropy')
 last_conv_layer_name = 'Conv_1'
 
 # نموذج Grad-CAM
@@ -30,8 +32,16 @@ grad_model = Model(
 )
 
 # اختيار صورة عشوائية
-base_path = "/content/drive/MyDrive/Merged_Mendeley_ViralCovid/Test"
+base_path = "Test"
+if not os.path.exists(base_path):
+    st.error(f"Image folder not found: {base_path}")
+    st.stop()
+
 class_names = sorted(os.listdir(base_path))
+if not class_names:
+    st.error("No classes found in the image directory.")
+    st.stop()
+
 random_class = random.choice(class_names)
 class_path = os.path.join(base_path, random_class)
 random_img_name = random.choice(os.listdir(class_path))
@@ -81,3 +91,4 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.success("Visualization Complete")
+
