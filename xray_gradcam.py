@@ -1,3 +1,4 @@
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,23 +15,15 @@ st.set_page_config(layout="wide", page_title="X-Ray Diagnosis with Grad-CAM")
 st.title("Grad-CAM Visualization for Chest X-Ray Diagnosis")
 st.caption("AI-powered model interpretation with heatmaps and class probabilities.")
 
-# تحميل النموذج من Google Drive إذا لم يكن موجودًا
-model_path = "vgg16_final.h5"
-file_id = "17Q2205brGki5z5fVa-ionUXzITQvjljY"
-if not os.path.exists(model_path):
-    url = f"https://drive.google.com/uc?id={file_id}"
-    gdown.download(url, model_path, quiet=False)
-
-# تحميل النموذج وتحديد الطبقة الأخيرة
-import gdown
-
-model_path = "vgg16_final.h5"
-file_id = "17Q2205brGki5z5fVa-ionUXzITQvjljY"
+# تحميل النموذج من Google Drive
+model_path = "vgg16_best_852acc.h5"
+file_id = "1--SxjRX5Sxh8NKcrV5ztx2WZiSQwBEGi"
 
 if not os.path.exists(model_path):
     url = f"https://drive.google.com/uc?id={file_id}"
     gdown.download(url, model_path, quiet=False)
 
+# تحميل النموذج وتحديد آخر طبقة
 model = load_model(model_path)
 model.compile(optimizer='adam', loss='categorical_crossentropy')
 last_conv_layer_name = 'block5_conv3'
