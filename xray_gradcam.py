@@ -1,83 +1,88 @@
 import os
-import numpy as np
-import matplotlib.pyplot as plt
-import tensorflow as tf
 import cv2
+import numpy as np
 import streamlit as st
-import gdown
+import tensorflow as tf
+import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
-from matplotlib.patches import Patch
-from grad_cam import generate_gradcam
+from tensorflow.keras.preprocessing.image import img_to_array
+import gdown
 
-# إعداد الصفحة
-st.set_page_config(layout="wide", page_title="Grad-CAM Visualization for Chest X-Ray Diagnosis")
-st.title("Grad-CAM Visualization for Chest X-Ray Diagnosis")
-st.caption("Model interpretation with heatmaps and class probabilities.")
-
-# تحميل النموذج من Google Drive إذا لم يكن موجود
+# تحميل النموذج من Google Drive
 model_path = "vgg16_best_852acc.h5"
-file_id = "1--SxjRX5Sxh8NKcrV5ztx2WZiSQwBEGi"  # ✅ رابط النموذج الصحيح
+file_id = "1--SxjRX5Sxh8NKcrV5ztx2WZiSQwBEGi"
 
 if not os.path.exists(model_path):
     url = f"https://drive.google.com/uc?id={file_id}"
     gdown.download(url, model_path, quiet=False)
 
-# تحميل النموذج
 model = load_model(model_path, compile=False)
 last_conv_layer_name = 'block5_conv3'
+class_names = ['Bacterial Pneumonia', 'Normal', 'Viral Pneumonia']
 
-# رفع صورة من المستخدم
-uploaded_file = st.file_uploader("Upload a Chest X-Ray Image", type=["jpg", "png", "jpeg"])
-if uploaded_file is None:
-    st.info("Please upload an image to start the analysis.")
-    st.stop()
+# واجهة Streamlit
+st.title("Grad-CAM Visualization for Chest X-Ray Diagnosis")
+st.markdown("Model interpretation with heatmaps and class probabilities.")
+st.subheader("Upload a Chest X-Ray Image")
 
-# تجهيز الصورة
-file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-img = cv2.imdecode(file_bytes, 1)
-img = cv2.resize(img, (224, 224))
-img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-img_tensor = np.expand_dims(img_rgb.astype("float32") / 255.0, axis=0)
+uploaded_file = st.file_uploader("Choose a chest X-ray image...", type=["jpg", "jpeg", "png"])
 
-# توقع الصورة وتوليد Grad-CAM
-try:
-    heatmap, superimposed_img, predictions, _ = generate_gradcam(model, img_tensor, img_rgb, last_conv_layer_name)
-    class_names = ['Bacterial Pneumonia', 'Normal', 'Viral Pneumonia']
+if uploaded_file is not None:
+    try:
+        # قراءة الصورة وتحضيرها
+        file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+        image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+        image = cv2.resize(image, (224, 224))
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        img_array = img_to_array(image_rgb)
+        img_array = np.expand_dims(img_array / 255.0, axis=0)
 
-    class_idx = np.argmax(predictions[0])
-    predicted_class_name = class_names[class_idx]
-    confidence = float(predictions[0][class_idx]) * 100
+        # التنبؤ
+        predictions = model.predict(img_array)
 
-    # عرض النتائج
-    st.markdown("### Prediction Summary")
-    col_pred, col_chart = st.columns([1, 2])
-    with col_pred:
-        st.metric(label="Predicted Class", value=predicted_class_name)
-        st.metric(label="Confidence", value=f"{confidence:.2f}%")
-        explanation_dict = {
-            'Bacterial Pneumonia': "Bacterial pneumonia often shows patchy or consolidated opacities.",
-            'Normal': "The X-ray does not show signs typical of pneumonia. The lungs appear clear.",
-            'Viral Pneumonia': "Viral pneumonia may present as ground-glass opacities."
-        }
-        st.markdown(f"**Medical Insight:**\n> {explanation_dict[predicted_class_name]}")
+        # تحقق من شكل التنبؤ
+        if predictions is None or len(predictions) == 0 or predictions[0].size != len(class_names):
+            st.error("⚠️ Model prediction failed or returned invalid output.")
+            st.stop()
 
-    with col_chart:
-        fig, ax = plt.subplots()
-        ax.bar(class_names, predictions[0], color=['red', 'green', 'blue'])
-        ax.set_ylim([0, 1])
-        ax.set_ylabel("Confidence")
-        ax.set_title("Prediction Probabilities")
-        for i, v in enumerate(predictions[0]):
-            ax.text(i, v + 0.02, f"{v:.2f}", ha='center', fontweight='bold')
-        st.pyplot(fig)
+        class_idx = int(np.argmax(predictions[0]))
+        if class_idx >= len(class_names):
+            st.error("⚠️ Prediction index is out of valid range. Check model output.")
+            st.stop()
 
-    st.markdown("### Grad-CAM Heatmap")
-    col1, col2 = st.columns(2)
-    col1.image(img_rgb, caption="Original X-Ray", use_container_width=True)
-    col2.image(superimposed_img, caption="Grad-CAM Overlay", use_container_width=True)
+        predicted_class_name = class_names[class_idx]
+        st.success(f"**Predicted Class:** {predicted_class_name}")
 
-except Exception as e:
-    st.error(f"Failed to process the image.\n\n{str(e)}")
+        # توليد خريطة Grad-CAM
+        grad_model = tf.keras.models.Model(
+            [model.inputs], [model.get_layer(last_conv_layer_name).output, model.output]
+        )
+
+        with tf.GradientTape() as tape:
+            conv_outputs, predictions = grad_model(img_array)
+            loss = predictions[:, class_idx]
+
+        grads = tape.gradient(loss, conv_outputs)[0]
+        conv_outputs = conv_outputs[0]
+        weights = tf.reduce_mean(grads, axis=(0, 1))
+        cam = np.zeros(conv_outputs.shape[:2], dtype=np.float32)
+
+        for i, w in enumerate(weights):
+            cam += w * conv_outputs[:, :, i]
+
+        cam = np.maximum(cam, 0)
+        cam = cv2.resize(cam.numpy(), (224, 224))
+        cam -= cam.min()
+        cam /= cam.max()
+        heatmap = (cam * 255).astype("uint8")
+        heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+        overlay = cv2.addWeighted(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), 0.6, heatmap, 0.4, 0)
+
+        # عرض الصورة وGrad-CAM
+        st.image(overlay, caption="Grad-CAM Heatmap", use_column_width=True)
+
+    except Exception as e:
+        st.error(f"Failed to process the image.\n\n**{str(e)}**")
 
 
 
