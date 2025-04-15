@@ -22,6 +22,15 @@ if not os.path.exists(model_path):
     gdown.download(url, model_path, quiet=False)
 
 # تحميل النموذج وتحديد الطبقة الأخيرة
+import gdown
+
+model_path = "vgg16_final.h5"
+file_id = "17Q2205brGki5z5fVa-ionUXzITQvjljY"
+
+if not os.path.exists(model_path):
+    url = f"https://drive.google.com/uc?id={file_id}"
+    gdown.download(url, model_path, quiet=False)
+
 model = load_model(model_path)
 model.compile(optimizer='adam', loss='categorical_crossentropy')
 last_conv_layer_name = 'block5_conv3'
