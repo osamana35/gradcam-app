@@ -4,29 +4,32 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import cv2
 import streamlit as st
+import gdown
 from tensorflow.keras.models import load_model
 from matplotlib.patches import Patch
-from grad_cam import generate_gradcam  # ✅ استدعاء الوظيفة من الملف المنفصل
+from grad_cam import generate_gradcam
 
 # إعداد الصفحة
-st.set_page_config(layout="wide", page_title="🧠 X-Ray Diagnosis with Grad-CAM")
-st.title("🔍 Grad-CAM Visualization for Chest X-Ray Diagnosis")
+st.set_page_config(layout="wide", page_title="X-Ray Diagnosis with Grad-CAM")
+st.title("Grad-CAM Visualization for Chest X-Ray Diagnosis")
 st.caption("AI-powered model interpretation with heatmaps and class probabilities.")
 
-# تحميل النموذج
-model_path = "vgg16_final.h5"  # غيّر حسب اسم ملفك إذا اختلف
+# تحميل النموذج من Google Drive إذا لم يكن موجودًا
+model_path = "vgg16_final.h5"
+file_id = "17Q2205brGki5z5fVa-ionUXzITQvjljY"
 if not os.path.exists(model_path):
-    st.error(f"🚫 Model file not found: {model_path}")
-    st.stop()
+    url = f"https://drive.google.com/uc?id={file_id}"
+    gdown.download(url, model_path, quiet=False)
 
+# تحميل النموذج وتحديد الطبقة الأخيرة
 model = load_model(model_path)
 model.compile(optimizer='adam', loss='categorical_crossentropy')
-last_conv_layer_name = 'block5_conv3'  # ✅ آخر طبقة في VGG16
+last_conv_layer_name = 'block5_conv3'
 
 # رفع صورة
-uploaded_file = st.file_uploader("📤 Upload a Chest X-Ray Image", type=["jpg", "png", "jpeg"])
+uploaded_file = st.file_uploader("Upload a Chest X-Ray Image", type=["jpg", "png", "jpeg"])
 if uploaded_file is None:
-    st.info("👆 Please upload an image to start the analysis.")
+    st.info("Please upload an image to start the analysis.")
     st.stop()
 
 # تجهيز الصورة
@@ -44,7 +47,7 @@ class_names = ['Bacterial Pneumonia', 'Normal', 'Viral Pneumonia']
 predicted_class_name = class_names[int(class_idx)]
 confidence = float(predictions[0][class_idx]) * 100
 
-st.markdown("### 🧠 Prediction Summary")
+st.markdown("### Prediction Summary")
 col_pred, col_chart = st.columns([1, 2])
 with col_pred:
     st.metric(label="Predicted Class", value=predicted_class_name)
@@ -54,7 +57,7 @@ with col_pred:
         'Normal': "The X-ray does not show signs typical of pneumonia. The lungs appear clear.",
         'Viral Pneumonia': "Viral pneumonia may present as ground-glass opacities."
     }
-    st.markdown(f"#### 🩺 Medical Insight\n> {explanation_dict[predicted_class_name]}")
+    st.markdown(f"#### Medical Insight\n> {explanation_dict[predicted_class_name]}")
 
 with col_chart:
     fig, ax = plt.subplots()
@@ -66,18 +69,19 @@ with col_chart:
         ax.text(i, v + 0.02, f"{v:.2f}", ha='center', fontweight='bold')
     st.pyplot(fig)
 
-st.markdown("### 🖼️ Grad-CAM Heatmap")
+st.markdown("### Grad-CAM Heatmap")
 col1, col2 = st.columns(2)
-col1.image(img_rgb, caption="🩻 Original X-Ray", use_container_width=True)
-col2.image(superimposed_img, caption="🔥 Grad-CAM Overlay", use_container_width=True)
+col1.image(img_rgb, caption="Original X-Ray", use_container_width=True)
+col2.image(superimposed_img, caption="Grad-CAM Overlay", use_container_width=True)
 
 st.markdown("""
 <hr>
-### 🎨 Grad-CAM Attention Legend
-- <span style='color:red'><strong>Red</strong></span>: High Attention  
-- <span style='color:orange'><strong>Yellow</strong></span>: Moderate Attention  
-- <span style='color:blue'><strong>Blue</strong></span>: Low Attention  
+### Grad-CAM Attention Legend
+- Red: High Attention  
+- Yellow: Moderate Attention  
+- Blue: Low Attention  
 <hr>
 """, unsafe_allow_html=True)
 
-st.info("💡 Grad-CAM highlights regions in the image that influenced the model’s decision.")
+st.info("Grad-CAM highlights regions in the image that influenced the model’s decision.")
+
