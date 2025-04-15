@@ -1,4 +1,3 @@
-
 import os
 import cv2
 import numpy as np
@@ -6,10 +5,9 @@ import streamlit as st
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.image import img_to_array
 import gdown
 
-# تحميل النموذج من Google Drive
+# تحميل النموذج
 model_path = "vgg16_best_852acc.h5"
 file_id = "1--SxjRX5Sxh8NKcrV5ztx2WZiSQwBEGi"
 
@@ -18,12 +16,15 @@ if not os.path.exists(model_path):
     gdown.download(url, model_path, quiet=False)
 
 model = load_model(model_path, compile=False)
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+# طبقة Grad-CAM
 last_conv_layer_name = 'block5_conv3'
 
-# ✅ ترتيب الفئات حسب التدريب (الأصلي داخل النموذج)
-class_names = ['Normal', 'Viral Pneumonia', 'Bacterial Pneumonia']
+# ✅ ترتيب الفئات حسب التدريب
+class_names = ['Pneumonia-Bacterial', 'Normal', 'Viral Pneumonia']
 
-# واجهة Streamlit
+# Streamlit UI
 st.title("Ray Diagnosis")
 st.markdown("Model interpretation with heatmaps and class probabilities.")
 st.subheader("Upload a Chest X-ray Image")
@@ -32,25 +33,26 @@ uploaded_file = st.file_uploader("Choose a chest X-ray image...", type=["jpg", "
 
 if uploaded_file is not None:
     try:
-        # قراءة الصورة وتحضيرها
+        # تحميل الصورة وتحويلها لـ Grayscale + CLAHE
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-        image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+        image = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
         image = cv2.resize(image, (224, 224))
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        img_array = img_to_array(image_rgb)
-        img_array = np.expand_dims(img_array / 255.0, axis=0)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        image = clahe.apply(image)
+
+        # تحويلها لـ 3 قنوات
+        image_3ch = cv2.merge([image, image, image])
+        image_norm = image_3ch.astype('float32') / 255.0
+        img_array = np.expand_dims(image_norm, axis=0)
 
         # التنبؤ
-        predictions = model.predict(img_array)
-        class_idx = int(np.argmax(predictions[0]))
-        predicted_class_name = class_names[class_idx]
-        st.success(f"✅ **Predicted Class:** {predicted_class_name}")
+        preds = model.predict(img_array)
+        class_idx = int(np.argmax(preds[0]))
+        predicted_class = class_names[class_idx]
+        st.success(f"✅ **Predicted Class:** {predicted_class}")
 
-        # توليد خريطة Grad-CAM
-        grad_model = tf.keras.models.Model(
-            [model.inputs], [model.get_layer(last_conv_layer_name).output, model.output]
-        )
-
+        # Grad-CAM
+        grad_model = tf.keras.models.Model([model.inputs], [model.get_layer(last_conv_layer_name).output, model.output])
         with tf.GradientTape() as tape:
             conv_outputs, predictions = grad_model(img_array)
             loss = predictions[:, class_idx]
@@ -64,15 +66,12 @@ if uploaded_file is not None:
             cam += w * conv_outputs[:, :, i]
 
         cam = np.maximum(cam, 0)
-        cam = cv2.resize(cam, (224, 224))
+        cam = cv2.resize(cam.numpy(), (224, 224))
         cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
         heatmap = (cam * 255).astype("uint8")
         heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+        overlay = cv2.addWeighted(image_3ch, 0.6, heatmap, 0.4, 0)
 
-        # مزج الصورة الأصلية مع Grad-CAM
-        overlay = cv2.addWeighted(image_rgb, 0.6, heatmap, 0.4, 0)
-
-        # عرض الصورة النهائية
         st.image(overlay, caption="Grad-CAM Heatmap", use_column_width=True)
 
     except Exception as e:
