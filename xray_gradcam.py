@@ -33,17 +33,19 @@ uploaded_file = st.file_uploader("Choose a chest X-ray image...", type=["jpg", "
 
 if uploaded_file is not None:
     try:
-        # تحميل الصورة وتحويلها لـ Grayscale + CLAHE
+        # التحميل والمعالجة بنفس طريقة التدريب
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-        image = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
-        image = cv2.resize(image, (224, 224))
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        image = clahe.apply(image)
+        img = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
+        img = cv2.resize(img, (224, 224))
 
-        # تحويلها لـ 3 قنوات
-        image_3ch = cv2.merge([image, image, image])
-        image_norm = image_3ch.astype('float32') / 255.0
-        img_array = np.expand_dims(image_norm, axis=0)
+        # تطبيق CLAHE
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        img = clahe.apply(img)
+
+        # تحويل إلى 3 قنوات + normalize
+        img_rgb = cv2.merge([img, img, img])
+        img_rgb = img_rgb.astype('float32') / 255.0
+        img_array = np.expand_dims(img_rgb, axis=0)
 
         # التنبؤ
         preds = model.predict(img_array)
@@ -70,7 +72,7 @@ if uploaded_file is not None:
         cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
         heatmap = (cam * 255).astype("uint8")
         heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-        overlay = cv2.addWeighted(image_3ch, 0.6, heatmap, 0.4, 0)
+        overlay = cv2.addWeighted(img_rgb, 0.6, heatmap, 0.4, 0)
 
         st.image(overlay, caption="Grad-CAM Heatmap", use_column_width=True)
 
