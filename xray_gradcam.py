@@ -56,7 +56,7 @@ heatmap, superimposed_img, predictions, class_idx = generate_gradcam(model, img_
 
 # عرض النتائج
 class_names = ['Bacterial Pneumonia', 'Normal', 'Viral Pneumonia']
-predicted_class_name = class_names[int(class_idx)]
+predicted_class_name = class_names[int(class_idx.numpy())]
 confidence = float(predictions[0][class_idx]) * 100
 
 st.markdown("### Prediction Summary")
