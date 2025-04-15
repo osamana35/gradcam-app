@@ -6,13 +6,25 @@ import cv2
 import streamlit as st
 import gdown
 from tensorflow.keras.models import load_model
+from tensorflow.keras import backend as K
 from matplotlib.patches import Patch
 from grad_cam import generate_gradcam
+
+# focal loss
+def focal_loss(gamma=2., alpha=0.25):
+    def focal_loss_fixed(y_true, y_pred):
+        epsilon = K.epsilon()
+        y_pred = K.clip(y_pred, epsilon, 1. - epsilon)
+        cross_entropy = -y_true * K.log(y_pred)
+        weight = alpha * K.pow(1 - y_pred, gamma)
+        loss = weight * cross_entropy
+        return K.sum(loss, axis=1)
+    return focal_loss_fixed
 
 # إعداد الصفحة
 st.set_page_config(layout="wide", page_title="X-Ray Diagnosis with Grad-CAM")
 st.title("Grad-CAM Visualization for Chest X-Ray Diagnosis")
-st.caption("AI-powered model interpretation with heatmaps and class probabilities.")
+st.caption("Model interpretation with heatmaps and class probabilities")
 
 # تحميل النموذج من Google Drive
 model_path = "vgg16_best_852acc.h5"
@@ -21,8 +33,8 @@ if not os.path.exists(model_path):
     url = f"https://drive.google.com/uc?id={file_id}"
     gdown.download(url, model_path, quiet=False)
 
-# تحميل النموذج وتحديد الطبقة الأخيرة
-model = load_model(model_path)
+# تحميل النموذج وتسجيل الدالة المخصصة
+model = load_model(model_path, custom_objects={'focal_loss_fixed': focal_loss()})
 model.compile(optimizer='adam', loss='categorical_crossentropy')
 last_conv_layer_name = 'block5_conv3'
 
@@ -54,7 +66,7 @@ with col_pred:
     st.metric(label="Confidence", value=f"{confidence:.2f}%")
     explanation_dict = {
         'Bacterial Pneumonia': "Bacterial pneumonia often shows patchy or consolidated opacities.",
-        'Normal': "The X-ray does not show signs typical of pneumonia. The lungs appear clear.",
+        'Normal': "The X-ray does not show signs typical of pneumonia.",
         'Viral Pneumonia': "Viral pneumonia may present as ground-glass opacities."
     }
     st.markdown(f"**Medical Insight:**\n\n{explanation_dict[predicted_class_name]}")
