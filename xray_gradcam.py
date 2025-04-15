@@ -1,36 +1,34 @@
 import os
-import cv2
 import numpy as np
-import tensorflow as tf
 import matplotlib.pyplot as plt
+import tensorflow as tf
+import cv2
 import streamlit as st
 import gdown
 from tensorflow.keras.models import load_model
 from matplotlib.patches import Patch
-from grad_cam import generate_gradcam
-
-# إعداد الصفحة
-st.set_page_config(layout="wide", page_title="X-Ray Grad-CAM")
-st.title("Grad-CAM Visualization for Chest X-Ray Diagnosis")
-st.caption("Model interpretation with heatmaps and class probabilities.")
+from grad_cam import generate_gradcam  # تأكد أن الملف grad_cam.py موجود بنفس المجلد
 
 # تحميل النموذج من Google Drive
 model_path = "vgg16_best_852acc.h5"
-file_id = "1--SxjRX5Sxh8NKcrV5ztx2WZiSQwBEGi"
+file_id = "1--SxjRX5Sxh8NKcrV5ztx2WZiSQwBEGi"  # تأكد أنه رابط مباشر لملف .h5 الصحيح
 
 if not os.path.exists(model_path):
     url = f"https://drive.google.com/uc?id={file_id}"
     gdown.download(url, model_path, quiet=False)
 
-# تحميل النموذج مع تسجيل Custom Loss (في حال الحاجة)
+# تحميل النموذج
 model = load_model(model_path, compile=False)
-model.compile(optimizer='adam', loss='categorical_crossentropy')
 last_conv_layer_name = 'block5_conv3'
+
+# واجهة Streamlit
+st.set_page_config(layout="wide", page_title="X-Ray Diagnosis with Grad-CAM")
+st.title("Grad-CAM Visualization for Chest X-Ray Diagnosis")
+st.caption("Model interpretation with heatmaps and class probabilities.")
 
 # رفع صورة
 uploaded_file = st.file_uploader("Upload a Chest X-Ray Image", type=["jpg", "png", "jpeg"])
 if uploaded_file is None:
-    st.info("Please upload an image to start the analysis.")
     st.stop()
 
 # تجهيز الصورة
@@ -41,47 +39,38 @@ img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 img_tensor = np.expand_dims(img_rgb.astype("float32") / 255.0, axis=0)
 
 # Grad-CAM
-heatmap, superimposed_img, predictions, class_idx = generate_gradcam(model, img_tensor, img_rgb, last_conv_layer_name)
+heatmap, superimposed_img, predictions, class_idx = generate_gradcam(
+    model, img_tensor, img_rgb, last_conv_layer_name
+)
 
-# ✅ معالجة class_idx لو None
+# عرض النتائج
+class_names = ['Bacterial Pneumonia', 'Normal', 'Viral Pneumonia']
 try:
-    class_idx_val = int(class_idx.numpy()) if hasattr(class_idx, 'numpy') else int(class_idx)
+    predicted_class_name = class_names[int(class_idx.numpy())]
 except:
     st.error("❌ Failed to determine class index.")
     st.stop()
 
-# عرض النتائج
-class_names = ['Bacterial Pneumonia', 'Normal', 'Viral Pneumonia']
-predicted_class_name = class_names[class_idx_val]
-confidence = float(predictions[0][class_idx_val]) * 100
+confidence = float(predictions[0][class_idx]) * 100
 
-st.markdown("### Prediction Summary")
-col_pred, col_chart = st.columns([1, 2])
-with col_pred:
-    st.metric(label="Predicted Class", value=predicted_class_name)
-    st.metric(label="Confidence", value=f"{confidence:.2f}%")
-    explanation_dict = {
-        'Bacterial Pneumonia': "Bacterial pneumonia often shows patchy or consolidated opacities.",
-        'Normal': "The X-ray does not show signs typical of pneumonia. The lungs appear clear.",
-        'Viral Pneumonia': "Viral pneumonia may present as ground-glass opacities."
-    }
-    st.markdown(f"**Medical Insight:**\n> {explanation_dict[predicted_class_name]}")
-
-with col_chart:
+st.subheader("Prediction Summary")
+col1, col2 = st.columns(2)
+with col1:
+    st.metric("Predicted Class", predicted_class_name)
+    st.metric("Confidence", f"{confidence:.2f}%")
+with col2:
     fig, ax = plt.subplots()
     ax.bar(class_names, predictions[0], color=['red', 'green', 'blue'])
     ax.set_ylim([0, 1])
     ax.set_ylabel("Confidence")
-    ax.set_title("Prediction Probabilities")
+    ax.set_title("Class Probabilities")
     for i, v in enumerate(predictions[0]):
-        ax.text(i, v + 0.02, f"{v:.2f}", ha='center', fontweight='bold')
+        ax.text(i, v + 0.02, f"{v:.2f}", ha='center')
     st.pyplot(fig)
 
-# عرض Grad-CAM
-st.markdown("### Grad-CAM Heatmap")
+st.subheader("Grad-CAM Heatmap")
 col1, col2 = st.columns(2)
 col1.image(img_rgb, caption="Original X-Ray", use_container_width=True)
 col2.image(superimposed_img, caption="Grad-CAM Overlay", use_container_width=True)
-
 
 
