@@ -1,3 +1,4 @@
+
 import os
 import cv2
 import numpy as np
@@ -19,13 +20,13 @@ if not os.path.exists(model_path):
 model = load_model(model_path, compile=False)
 last_conv_layer_name = 'block5_conv3'
 
-# ✅ ترتيب الفئات بناءً على الترتيب داخل الموديل
-class_names = ['Bacterial Pneumonia', 'Viral Pneumonia', 'Normal']
+# ✅ ترتيب الفئات حسب التدريب (الأصلي داخل النموذج)
+class_names = ['Normal', 'Viral Pneumonia', 'Bacterial Pneumonia']
 
 # واجهة Streamlit
-st.title("Grad-CAM Visualization for Chest X-Ray Diagnosis")
+st.title("Ray Diagnosis")
 st.markdown("Model interpretation with heatmaps and class probabilities.")
-st.subheader("Upload a Chest X-Ray Image")
+st.subheader("Upload a Chest X-ray Image")
 
 uploaded_file = st.file_uploader("Choose a chest X-ray image...", type=["jpg", "jpeg", "png"])
 
@@ -33,17 +34,9 @@ if uploaded_file is not None:
     try:
         # قراءة الصورة وتحضيرها
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-        image = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
+        image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         image = cv2.resize(image, (224, 224))
-
-        # تطبيق CLAHE
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        image = clahe.apply(image)
-
-        # تحويلها إلى RGB
-        image = cv2.merge([image, image, image])
         image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
         img_array = img_to_array(image_rgb)
         img_array = np.expand_dims(img_array / 255.0, axis=0)
 
@@ -53,7 +46,7 @@ if uploaded_file is not None:
         predicted_class_name = class_names[class_idx]
         st.success(f"✅ **Predicted Class:** {predicted_class_name}")
 
-        # توليد Grad-CAM
+        # توليد خريطة Grad-CAM
         grad_model = tf.keras.models.Model(
             [model.inputs], [model.get_layer(last_conv_layer_name).output, model.output]
         )
@@ -71,14 +64,15 @@ if uploaded_file is not None:
             cam += w * conv_outputs[:, :, i]
 
         cam = np.maximum(cam, 0)
-        cam = cv2.resize(cam, (224, 224))  # ✅ بدون .numpy()
-        cam -= cam.min()
-        cam /= cam.max()
+        cam = cv2.resize(cam, (224, 224))
+        cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
         heatmap = (cam * 255).astype("uint8")
         heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+
+        # مزج الصورة الأصلية مع Grad-CAM
         overlay = cv2.addWeighted(image_rgb, 0.6, heatmap, 0.4, 0)
 
-        # عرض النتيجة
+        # عرض الصورة النهائية
         st.image(overlay, caption="Grad-CAM Heatmap", use_column_width=True)
 
     except Exception as e:
