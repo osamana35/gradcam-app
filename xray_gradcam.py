@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
 import gdown
 
-# تحميل النموذج من Google Drive إذا غير موجود
+# تحميل النموذج
 model_path = "vgg16_best_852acc.h5"
 file_id = "1--SxjRX5Sxh8NKcrV5ztx2WZiSQwBEGi"
 
@@ -15,20 +15,14 @@ if not os.path.exists(model_path):
     url = f"https://drive.google.com/uc?id={file_id}"
     gdown.download(url, model_path, quiet=False)
 
-# تحميل النموذج
 model = load_model(model_path, compile=False)
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-# ✅ ترتيب الفئات الصحيح (حسب التدريب)
-class_indices = {
-    'Bacterial Pneumonia': 0,
-    'Normal': 1,
-    'Viral Pneumonia': 2
-}
-class_names = [name for name, idx in sorted(class_indices.items(), key=lambda item: item[1])]
-
-# اسم الطبقة الأخيرة للـ Grad-CAM
+# Grad-CAM layer
 last_conv_layer_name = 'block5_conv3'
+
+# ✅ ترتيب الفئات حسب تدريبك
+class_names = ['Normal', 'Pneumonia-Bacterial', 'Viral Pneumonia']
 
 # Streamlit UI
 st.title("Ray Diagnosis")
@@ -39,15 +33,14 @@ uploaded_file = st.file_uploader("Choose a chest X-ray image...", type=["jpg", "
 
 if uploaded_file is not None:
     try:
-        # تحميل الصورة + CLAHE + normalize
+        # معالجة الصورة بنفس خطوات التدريب
         file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
         image = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
         image = cv2.resize(image, (224, 224))
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         image = clahe.apply(image)
-
-        image_rgb = cv2.merge([image, image, image])
-        image_norm = image_rgb.astype('float32') / 255.0
+        image_3ch = cv2.merge([image, image, image])
+        image_norm = image_3ch.astype('float32') / 255.0
         img_array = np.expand_dims(image_norm, axis=0)
 
         # التنبؤ
@@ -74,13 +67,13 @@ if uploaded_file is not None:
         cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
         heatmap = (cam * 255).astype("uint8")
         heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-        overlay = cv2.addWeighted(image_rgb, 0.6, heatmap, 0.4, 0)
+        overlay = cv2.addWeighted(image_3ch, 0.6, heatmap, 0.4, 0)
 
+        # عرض النتيجة
         st.image(overlay, caption="Grad-CAM Heatmap", use_column_width=True)
 
     except Exception as e:
         st.error(f"❌ Failed to process the image.\n\n**{str(e)}**")
-
 
 
 
