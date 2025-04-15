@@ -1,4 +1,3 @@
-
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,12 +17,11 @@ st.caption("AI-powered model interpretation with heatmaps and class probabilitie
 # تحميل النموذج من Google Drive
 model_path = "vgg16_best_852acc.h5"
 file_id = "1--SxjRX5Sxh8NKcrV5ztx2WZiSQwBEGi"
-
 if not os.path.exists(model_path):
     url = f"https://drive.google.com/uc?id={file_id}"
     gdown.download(url, model_path, quiet=False)
 
-# تحميل النموذج وتحديد آخر طبقة
+# تحميل النموذج وتحديد الطبقة الأخيرة
 model = load_model(model_path)
 model.compile(optimizer='adam', loss='categorical_crossentropy')
 last_conv_layer_name = 'block5_conv3'
@@ -59,7 +57,7 @@ with col_pred:
         'Normal': "The X-ray does not show signs typical of pneumonia. The lungs appear clear.",
         'Viral Pneumonia': "Viral pneumonia may present as ground-glass opacities."
     }
-    st.markdown(f"#### Medical Insight\n> {explanation_dict[predicted_class_name]}")
+    st.markdown(f"**Medical Insight:**\n\n{explanation_dict[predicted_class_name]}")
 
 with col_chart:
     fig, ax = plt.subplots()
@@ -76,14 +74,4 @@ col1, col2 = st.columns(2)
 col1.image(img_rgb, caption="Original X-Ray", use_container_width=True)
 col2.image(superimposed_img, caption="Grad-CAM Overlay", use_container_width=True)
 
-st.markdown("""
-<hr>
-### Grad-CAM Attention Legend
-- Red: High Attention  
-- Yellow: Moderate Attention  
-- Blue: Low Attention  
-<hr>
-""", unsafe_allow_html=True)
-
-st.info("Grad-CAM highlights regions in the image that influenced the model’s decision.")
 
